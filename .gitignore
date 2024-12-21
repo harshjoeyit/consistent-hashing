@@ -1,0 +1,45 @@
+# Binaries for programs and plugins
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Output of build process
+/build/
+bin/
+*.out
+
+# Test binary
+*.test
+
+# Go modules
+/go.sum
+/go.mod.cache/
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.swp
+
+# Coverage reports
+coverage.out
+*.coverprofile
+
+# Vendor directory (if not committed)
+vendor/
+
+# Local environment files
+.env
+
+todo.md
