@@ -16,7 +16,7 @@ func main() {
 
 	counter := make(map[string]int)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		node, exists := hr.GetNode(fmt.Sprintf("key%d", i))
 		if !exists {
 			fmt.Println("Node not found")
@@ -33,7 +33,7 @@ func main() {
 
 	counter = make(map[string]int)
 
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		node, exists := hr.GetNode(fmt.Sprintf("key%d", i))
 		if !exists {
 			fmt.Println("Node not found")

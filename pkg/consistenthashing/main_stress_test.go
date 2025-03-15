@@ -13,13 +13,13 @@ func TestStress(t *testing.T) {
 	var wg sync.WaitGroup
 
 	// Add nodes.
-	for i := 0; i < nodeCount; i++ {
+	for i := range nodeCount {
 		hr.AddNode("Node"+strconv.Itoa(i), 1)
 	}
 
 	// Query keys in parallel.
 	wg.Add(10)
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		go func(start int) {
 			defer wg.Done()
 			for j := start; j < keyCount; j += 10 {
@@ -33,7 +33,7 @@ func TestStress(t *testing.T) {
 	wg.Wait()
 
 	// Remove nodes and verify.
-	for i := 0; i < nodeCount; i++ {
+	for i := range nodeCount {
 		hr.RemoveNode("Node" + strconv.Itoa(i))
 	}
 	if len(hr.sortedHashes) != 0 {

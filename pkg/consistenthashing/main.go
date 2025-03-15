@@ -3,16 +3,28 @@ package consistenthashing
 import (
 	"crypto/sha1"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 )
 
 type HashRing struct {
-	nodes        map[uint32]string // Maps hash values to node addresses.
-	sortedHashes []uint32          // Sorted hashes of all nodes.
-	replicas     uint              // Number of virtual nodes per real node.
-	mutex        sync.RWMutex      // To make it safe for concurrent use.
+	// nodes Maps hash values to node addresses.
+	//
+	// To avoid collissions - use a Larger Hash Function: Consider using sha256 or sha512
+	// and taking more bytes from the hash output. For example, you could use a uint64
+	// instead of a uint32.
+	nodes map[uint32]string
+
+	// sortedHashes stores Sorted hashes of all nodes.
+	sortedHashes []uint32
+
+	// replicas denotes number of virtual nodes per real node.
+	replicas uint
+
+	// mutex makes it safe for concurrent use.
+	mutex sync.RWMutex
 }
 
 func NewHashRing(replicas uint) *HashRing {
@@ -32,17 +44,18 @@ func (hr *HashRing) AddNode(node string, weight float32) {
 	defer hr.mutex.Unlock()
 
 	virtualnodes := int(weight * float32(hr.replicas))
-	for i := 0; i < virtualnodes; i++ {
+	for i := range virtualnodes {
 		// virtual node name is "node#i"
 		virtualNode := fmt.Sprintf("%s#%d", node, i)
-		h := hash(virtualNode)
-		hr.nodes[h] = virtualNode
+
+		h := hash(virtualNode) // Note: Collissions are possible (increasing virtual nodes can still smooth out the distribution)
+
+		// add this virtual node to the hash ring
 		hr.sortedHashes = append(hr.sortedHashes, h)
+		hr.nodes[h] = virtualNode
 	}
 
-	sort.Slice(hr.sortedHashes, func(i, j int) bool {
-		return hr.sortedHashes[i] < hr.sortedHashes[j]
-	})
+	slices.Sort(hr.sortedHashes)
 }
 
 // RemoveNode removes a node from the hash ring
@@ -51,23 +64,21 @@ func (hr *HashRing) RemoveNode(node string) {
 	defer hr.mutex.Unlock()
 
 	// delete the node and its virtual nodes from map
-	for i := 0; i < int(hr.replicas); i++ {
+	for i := range int(hr.replicas) {
 		virtualNode := fmt.Sprintf("%s#%d", node, i)
 		delete(hr.nodes, hash(virtualNode))
 	}
 
-	updatedsortedHashes := make([]uint32, 0)
+	updatedSortedHashes := make([]uint32, 0)
 	for _, h := range hr.sortedHashes {
 		if _, exists := hr.nodes[h]; exists {
-			updatedsortedHashes = append(updatedsortedHashes, h)
+			updatedSortedHashes = append(updatedSortedHashes, h)
 		}
 	}
 
-	hr.sortedHashes = updatedsortedHashes
+	hr.sortedHashes = updatedSortedHashes
 
-	sort.Slice(hr.sortedHashes, func(i, j int) bool {
-		return hr.sortedHashes[i] < hr.sortedHashes[j]
-	})
+	slices.Sort(hr.sortedHashes)
 }
 
 // GetNode returns the node for the given key
@@ -80,7 +91,8 @@ func (hr *HashRing) GetNode(key string) (string, bool) {
 	}
 
 	h := hash(key)
-	// search for the first node hash that is greater than the key hash
+
+	// search for the first node hash that is greater than the key hash 'h'
 	i := sort.Search(len(hr.sortedHashes), func(i int) bool {
 		return hr.sortedHashes[i] >= h
 	})
@@ -105,10 +117,11 @@ func (*HashRing) getActualNode(node string) string {
 	return node
 }
 
-// hash creatse a new sha1 hash and convert to int32
+// hash returns a new integer sum for a sha1 hash
 func hash(s string) uint32 {
 	h := sha1.New()
 	h.Write([]byte(s))
 	bs := h.Sum(nil)
+
 	return (uint32(bs[0]) << 24) | (uint32(bs[1]) << 16) | (uint32(bs[2]) << 8) | uint32(bs[3])
 }
