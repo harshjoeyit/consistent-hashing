@@ -3,6 +3,7 @@ package consistenthashing
 import (
 	"crypto/sha1"
 	"fmt"
+	"math"
 	"slices"
 	"sort"
 	"strings"
@@ -23,6 +24,9 @@ type HashRing struct {
 	// replicas denotes number of virtual nodes per real node.
 	replicas uint
 
+	// weights stores the weight of each node.
+	weights map[string]float64
+
 	// mutex makes it safe for concurrent use.
 	mutex sync.RWMutex
 }
@@ -32,6 +36,7 @@ func NewHashRing(replicas uint) *HashRing {
 		nodes:        map[uint32]string{},
 		sortedHashes: []uint32{},
 		replicas:     replicas,
+		weights:      map[string]float64{},
 		mutex:        sync.RWMutex{},
 	}
 }
@@ -39,21 +44,26 @@ func NewHashRing(replicas uint) *HashRing {
 // AddNode adds a node to the hash ring
 // The default weight is 1, the number of virtual nodes is weight * Virtualnodes
 // Weight denotes the capacity of the node
-func (hr *HashRing) AddNode(node string, weight float32) {
+func (hr *HashRing) AddNode(node string, weight float64) {
 	hr.mutex.Lock()
 	defer hr.mutex.Unlock()
 
-	virtualnodes := int(weight * float32(hr.replicas))
+	virtualnodes := int(math.Round(weight * float64(hr.replicas)))
+
 	for i := range virtualnodes {
 		// virtual node name is "node#i"
 		virtualNode := fmt.Sprintf("%s#%d", node, i)
 
-		h := hash(virtualNode) // Note: Collissions are possible (increasing virtual nodes can still smooth out the distribution)
+		// Note: Collissions are possible (increasing virtual nodes can still
+		// smooth out the distribution)
+		h := hash(virtualNode)
 
 		// add this virtual node to the hash ring
 		hr.sortedHashes = append(hr.sortedHashes, h)
 		hr.nodes[h] = virtualNode
 	}
+
+	hr.weights[node] = weight
 
 	slices.Sort(hr.sortedHashes)
 }
@@ -63,10 +73,16 @@ func (hr *HashRing) RemoveNode(node string) {
 	hr.mutex.Lock()
 	defer hr.mutex.Unlock()
 
+	weight := hr.weights[node]
+
 	// delete the node and its virtual nodes from map
-	for i := range int(hr.replicas) {
+	virtualnodes := int(math.Round(weight * float64(hr.replicas)))
+
+	for i := range virtualnodes {
 		virtualNode := fmt.Sprintf("%s#%d", node, i)
-		delete(hr.nodes, hash(virtualNode))
+		h := hash(virtualNode)
+		// delete the virtual node from the hash ring
+		delete(hr.nodes, h)
 	}
 
 	updatedSortedHashes := make([]uint32, 0)
@@ -76,7 +92,11 @@ func (hr *HashRing) RemoveNode(node string) {
 		}
 	}
 
+	// update the sorted hashes
 	hr.sortedHashes = updatedSortedHashes
+
+	// delete the node from the weights map
+	delete(hr.weights, node)
 
 	slices.Sort(hr.sortedHashes)
 }
@@ -111,7 +131,7 @@ func (hr *HashRing) GetNode(key string) (string, bool) {
 func (*HashRing) getActualNode(node string) string {
 	if strings.Contains(node, "#") {
 		parts := strings.Split(node, "#")
-		return strings.Join(parts[:len(parts)-1], "#")
+		return parts[0]
 	}
 
 	return node

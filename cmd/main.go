@@ -12,7 +12,7 @@ func main() {
 
 	hr.AddNode("server1", 1)
 	hr.AddNode("server2", 1)
-	hr.AddNode("server3", 1)
+	hr.AddNode("server3", 2)
 
 	counter := make(map[string]int)
 
@@ -45,4 +45,17 @@ func main() {
 	for key, val := range counter {
 		fmt.Println(key, val)
 	}
+
+	hr.RemoveNode("server1")
+	hr.RemoveNode("server2")
+	hr.RemoveNode("server3")
+	hr.RemoveNode("server4")
+
+	node, exists := hr.GetNode("key1")
+	if !exists {
+		fmt.Println("Node not found")
+		return
+	}
+
+	fmt.Println("node found", node)
 }
